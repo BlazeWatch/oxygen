@@ -1,0 +1,2 @@
+memphis-py
+python-dotenv
