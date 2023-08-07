@@ -7,7 +7,6 @@ import multiprocessing
 from multiprocessing import Pool
 from dotenv import load_dotenv
 from memphis import Memphis, Headers, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
-from supabase import create_client, Client
 
 #Load env vars
 load_dotenv()
@@ -17,10 +16,6 @@ host = os.getenv("MEMPHIS_HOST")
 username = os.getenv("MEMPHIS_USERNAME")
 password = os.getenv("MEMPHIS_PASSWORD")
 account_id = os.getenv("MEMPHIS_ACCOUNT_ID")
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(url, key)
-
 
 
 async def main(station_name):
