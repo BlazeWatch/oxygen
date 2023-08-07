@@ -35,9 +35,11 @@ async def main(station_name):
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
         print(f"Memphis actualized and listening to {station_name}!")
         consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer", consumer_group="")
+        metadata = MetaData()
         #This code is a mess.
         temp_readings_duplicate = Table(
-            'temp_readings_duplicate'
+            'temp_readings_duplicate',
+            metadata,
             Column('id', Integer, primary_key=True),
             Column('day', Integer),
             Column('xy', String),
