@@ -63,7 +63,7 @@ async def main(station_name):
                     if "temperature" in record:
                         with conn.connect() as connection:
                             insert_statement = temp_readings_duplicate.insert().values(
-                                id=last_id_record,
+                                id=last_id_record+1,
                                 day=record["day"],
                                 xy=f'{record["geospatial_x"]},{record["geospatial_y"]}',
                                 temperature=record["temperature"]
