@@ -62,7 +62,6 @@ async def main(station_name):
                     record = json.loads(serialized_record)
                     if "temperature" in record:
                         with conn.connect() as connection:
-                            last_day_record*+2
                             insert_statement = temp_readings_duplicate.insert().values(
                                 id=last_id_record,
                                 day=record["day"],
@@ -71,10 +70,8 @@ async def main(station_name):
                             )
                             connection.execute(insert_statement)
                     print(f"Record {last_id_record} inserted!")
-                    last_day_record+=1
+                    last_id_record+=1
                         
-
-                conn.close()
                         
             
         
