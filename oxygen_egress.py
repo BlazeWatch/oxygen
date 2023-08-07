@@ -34,7 +34,7 @@ async def egress(station_name):
 if __name__ == "__egress__":
     msg = {'day': 69000, 'geospatial_x': 261, 'geospatial_y': 18}
     print(type(msg))
-    asyncio.run(main("zakar-tweets-2"))
+    asyncio.run(main("zakar-fire-alerts"))
 
 
 

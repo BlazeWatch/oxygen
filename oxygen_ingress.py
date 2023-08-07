@@ -21,8 +21,10 @@ url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
+
+
 async def main(station_name):
-        
+    count = 0
     try:
         memphis = Memphis()
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
@@ -35,8 +37,16 @@ async def main(station_name):
                 for msg in batch:
                     serialized_record = msg.get_data()
                     record = json.loads(serialized_record)
-                    print(record) #Model Eval Code HERE
-                    await msg.ack()
+                    if "tweet" in record:
+                        print("tweet key found!")
+                    elif "temperature" in record:
+                        print("temp key found")
+                    else:
+                        print("fire alert found!")
+
+                
+            
+                    
         
     except (MemphisError, MemphisConnectError) as e:
         print(e)
