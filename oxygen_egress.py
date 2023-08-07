@@ -18,7 +18,7 @@ password = os.getenv("MEMPHIS_PASSWORD")
 account_id = os.getenv("MEMPHIS_ACCOUNT_ID")
 
 
-async def egress(station_name):
+async def egress(station_name,msg):
     try:
         memphis = Memphis()
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
@@ -35,7 +35,8 @@ async def egress(station_name):
 if __name__ == "__egress__":
     msg = {'day': 69000, 'geospatial_x': 261, 'geospatial_y': 18}
     print(type(msg))
-    asyncio.run(egress("zakar-fire-alerts"))
+    asyncio.run(egress("zakar-fire-alerts",msg))
+    #Remember that u can call and set a task queue.
 
 
 
