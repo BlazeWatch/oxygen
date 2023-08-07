@@ -11,16 +11,13 @@ from memphis import Memphis, Headers, MemphisError, MemphisConnectError, Memphis
 #Load env vars
 load_dotenv()
 
-#Define environement variables 
-host = os.getenv("MEMPHIS_HOST")  
-username = os.getenv("MEMPHIS_USERNAME")
-password = os.getenv("MEMPHIS_PASSWORD")
-account_id = os.getenv("MEMPHIS_ACCOUNT_ID")
-
 
 async def main(station_name):
-    count = 0
     try:
+        host = os.getenv("MEMPHIS_HOST")  
+        username = os.getenv("MEMPHIS_USERNAME")
+        password = os.getenv("MEMPHIS_PASSWORD")
+        account_id = os.getenv("MEMPHIS_ACCOUNT_ID")
         memphis = Memphis()
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
         print(f"Memphis actualized and listening to {station_name}!")
@@ -38,10 +35,7 @@ async def main(station_name):
                         print("temp key found")
                     else:
                         print("fire alert found!")
-
-                
             
-                    
         
     except (MemphisError, MemphisConnectError) as e:
         print(e)
@@ -50,15 +44,16 @@ async def main(station_name):
         await memphis.close()
     
 
-async def run_tasks():
+async def run_ingress():
     await asyncio.gather(
         main("zakar-fire-alerts"),
         main("zakar-tweets"),
         main("zakar-temperature-readings")
     )
 
+#You can call this function from your main.py file(should work)
 if __name__ == "__main__":
-    asyncio.run(run_tasks())
+    asyncio.run(run_ingress())
 
     
     

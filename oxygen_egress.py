@@ -7,7 +7,7 @@ import multiprocessing
 from multiprocessing import Process
 from dotenv import load_dotenv
 from memphis import Memphis, Headers, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
-from supabase import create_client, Client
+
 #Load env vars
 load_dotenv()
 
@@ -30,11 +30,12 @@ async def egress(station_name):
         
     finally:
         await memphis.close()
-        
+
+#Testing! Use this for testing only! For prod use, import this function in your main.py file and call it from there!    
 if __name__ == "__egress__":
     msg = {'day': 69000, 'geospatial_x': 261, 'geospatial_y': 18}
     print(type(msg))
-    asyncio.run(main("zakar-fire-alerts"))
+    asyncio.run(egress("zakar-fire-alerts"))
 
 
 
