@@ -6,6 +6,7 @@ import dotenv
 import multiprocessing
 from multiprocessing import Process
 from dotenv import load_dotenv
+import numpy
 from memphis import Memphis, Headers, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
 
 #Load env vars

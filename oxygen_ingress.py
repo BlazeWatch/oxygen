@@ -10,19 +10,28 @@ from dotenv import load_dotenv
 from memphis import Memphis, Headers, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
 from sqlalchemy import create_engine, text as sql_text
 from sqlalchemy import create_engine, text, Table, Column, Integer, String, MetaData
+from psycopg2.extensions import register_adapter, AsIs
+import numpy
+def addapt_numpy_float64(numpy_float64):
+    return AsIs(numpy_float64)
+def addapt_numpy_int64(numpy_int64):
+    return AsIs(numpy_int64)
+register_adapter(numpy.float64, addapt_numpy_float64)
+register_adapter(numpy.int64, addapt_numpy_int64)
 
 #Load env vars
 load_dotenv()
 
 conn = create_engine(
     f"postgresql://{os.getenv('PG_USER')}:{os.getenv('PG_PASSWORD')}@{os.getenv('PG_HOST')}/{os.getenv('PG_DBNAME')}"
-).connect()
+)
 
 
 
 
 async def main(station_name):
     try:
+        load_dotenv()
         host = os.getenv("MEMPHIS_HOSTNAME")  
         username = os.getenv("MEMPHIS_USERNAME")
         password = os.getenv("MEMPHIS_PASSWORD")
@@ -51,17 +60,20 @@ async def main(station_name):
                 for msg in batch:
                     serialized_record = msg.get_data()
                     record = json.loads(serialized_record)
-                    print(record)
                     if "temperature" in record:
-                        insert_statement = temp_readings_duplicate.insert().values(
-                        id=last_day_record+1,
-                        day=record[0],
-                        xy=f'{record[1]},{record[2]}',
-                        temperature=record[3]
-                    )
-                    conn.execute(insert_statement) #Please work :3
-                    conn.commit()
-                    last_id_record+=1
+                        with conn.connect() as connection:
+                            last_day_record*+2
+                            insert_statement = temp_readings_duplicate.insert().values(
+                                id=last_id_record,
+                                day=record["day"],
+                                xy=f'{record["geospatial_x"]},{record["geospatial_y"]}',
+                                temperature=record["temperature"]
+                            )
+                            connection.execute(insert_statement)
+                    print(f"Record {last_id_record} inserted!")
+                    last_day_record+=1
+                        
+
                 conn.close()
                         
             

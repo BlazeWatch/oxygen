@@ -1,3 +1,5 @@
 memphis-py
 python-dotenv
 supabase-py
+sqlalchemy
+pandas
