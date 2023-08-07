@@ -4,4 +4,5 @@ import asyncio
 import os
 
 
-asyncio.run(oxygen_ingress.run_ingress())
+
+#asyncio.run(oxygen_ingress.run_ingress())
