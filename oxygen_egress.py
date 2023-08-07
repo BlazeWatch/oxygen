@@ -1,13 +1,8 @@
-import argparse
 import asyncio
 import json
 import os
-import dotenv
-import multiprocessing
-from multiprocessing import Process
 from dotenv import load_dotenv
-import numpy
-from memphis import Memphis, Headers, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
+from memphis import Memphis, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
 
 #Load env vars
 load_dotenv()
@@ -32,12 +27,11 @@ async def egress(station_name,msg):
     finally:
         await memphis.close()
 
-#Testing! Use this for testing only! For prod use, import this function in your main.py file and call it from there!    
-if __name__ == "__egress__":
-    msg = {'day': 69000, 'geospatial_x': 261, 'geospatial_y': 18}
-    print(type(msg))
-    asyncio.run(egress("zakar-fire-alerts",msg))
-    #Remember that u can call and set a task queue.
+
+msg = {'day': 5023, 'geospatial_x': 261, 'geospatial_y': 18}
+print(type(msg))
+asyncio.run(egress("zakar-tweets-2",msg))
+#Remember that u can call and set a task queue.
 
 
 

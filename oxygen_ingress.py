@@ -12,6 +12,8 @@ from sqlalchemy import create_engine, text as sql_text
 from sqlalchemy import create_engine, text, Table, Column, Integer, String, MetaData
 from psycopg2.extensions import register_adapter, AsIs
 import numpy
+
+#hacky solution for numpy64
 def addapt_numpy_float64(numpy_float64):
     return AsIs(numpy_float64)
 def addapt_numpy_int64(numpy_int64):
@@ -37,7 +39,7 @@ async def main(station_name):
         password = os.getenv("MEMPHIS_PASSWORD")
         account_id = os.getenv("MEMPHIS_ACCOUNT_ID")
         #Get last data record
-        last_day_record = pd.read_sql_query(sql_text("select * from temp_readings order by id desc limit 1;"), conn)['day'].values[0]
+        #last_day_record = pd.read_sql_query(sql_text("select * from temp_readings order by id desc limit 1;"), conn)['day'].values[0]
 
         last_id_record = pd.read_sql_query(sql_text("select * from temp_readings order by id desc limit 1;"), conn)['id'].values[0]
         memphis = Memphis()
@@ -85,7 +87,8 @@ async def main(station_name):
 async def run_ingress():
     await asyncio.gather(
         main("zakar-fire-alerts"),
-        main("zakar-temperature-readings")
+        main("zakar-temperature-readings"),
+        main("zakar-tweets")
     )
 
 #You can call this function from your main.py file(should work)
