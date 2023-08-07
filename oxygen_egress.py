@@ -12,7 +12,7 @@ from memphis import Memphis, Headers, MemphisError, MemphisConnectError, Memphis
 load_dotenv()
 
 #Define environement variables 
-host = os.getenv("MEMPHIS_HOST")  
+host = os.getenv("MEMPHIS_HOSTNAME")  
 username = os.getenv("MEMPHIS_USERNAME")
 password = os.getenv("MEMPHIS_PASSWORD")
 account_id = os.getenv("MEMPHIS_ACCOUNT_ID")
