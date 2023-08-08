@@ -1,13 +1,13 @@
 import asyncio
 import json
 import os
-import pandas as pd
-from dotenv import load_dotenv
-from memphis import Memphis, Headers, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
-from sqlalchemy import create_engine, text as sql_text
-from sqlalchemy import create_engine, text, Table, Column, Integer, String, MetaData
-from psycopg2.extensions import register_adapter, AsIs
+import threading
 import numpy
+from dotenv import load_dotenv
+from memphis import Memphis, MemphisError, MemphisConnectError
+from psycopg2.extensions import register_adapter, AsIs
+from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, func
+from sqlalchemy.sql.type_api import UserDefinedType
 
 
 # hacky solution for numpy64
@@ -30,6 +30,54 @@ conn = create_engine(
 )
 
 
+class Point(UserDefinedType):
+    def get_col_spec(self):
+        return "POINT"
+
+    def bind_processor(self, dialect):
+        def process(value):
+            return value
+
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            x, y = map(float, value[6:-1].split())
+            return x, y
+
+        return process
+
+
+metadata = MetaData()
+
+# This code is a mess.
+temp_readings_production = Table(
+    'temp_readings_production_test',
+    metadata,
+    Column('id', Integer, autoincrement=True, primary_key=True),
+    Column('day', Integer),
+    Column('xy', Point),
+    Column('temperature', Integer)
+)
+
+tweets_production = Table('tweets_production_test',
+                          metadata,
+                          Column('id', Integer, autoincrement=True, primary_key=True),
+                          Column('day', Integer), Column('xy', Point), Column('score', Integer),
+                          Column('content', String))
+
+firealerts_production = Table('fire_alerts_production_test', metadata,
+                              Column('id', Integer, autoincrement=True, primary_key=True),
+                              Column('event_day', Integer), Column('notification_day', Integer),
+                              Column('xy', Point))
+ai_firealerts_production = Table('ai_fire_alerts_production_test', metadata,
+                                 Column('id', Integer, autoincrement=True, primary_key=True),
+                                 Column('event_day', Integer), Column('notification_day', Integer),
+                                 Column('xy', Point))
+
+metadata.create_all(conn)
+
+
 async def main(station_name):
     try:
         load_dotenv()
@@ -37,71 +85,52 @@ async def main(station_name):
         username = os.getenv("MEMPHIS_USERNAME")
         password = os.getenv("MEMPHIS_PASSWORD")
         account_id = os.getenv("MEMPHIS_ACCOUNT_ID")
-        # Get last data record
-        # last_day_record = pd.read_sql_query(sql_text("select * from temp_readings order by id desc limit 1;"), conn)['day'].values[0]
+        print(host, username, password, account_id)
 
-        last_id_record = \
-        pd.read_sql_query(sql_text("select * from temp_readings order by id desc limit 1;"), conn)['id'].values[0]
         memphis = Memphis()
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
         print(f"Memphis actualized and listening to {station_name}!")
-        consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer",
+        consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer-4",
                                           consumer_group="")
-        metadata = MetaData()
-        # This code is a mess.
-        temp_readings_production = Table(
-            'temp_readings_production',
-            metadata,
-            Column('id', Integer, primary_key=True),
-            Column('day', Integer),
-            Column('xy', String),
-            Column('temperature', Integer)
-        )
-        tweets_production = Table('tweets_production', metadata, Column('id', Integer, primary_key=True),
-                                  Column('day', Integer), Column('xy', String), Column('score', Integer),
-                                  Column('content', String))
 
-        firealerts_production = Table('fire_alerts_production', metadata, Column('id', Integer, primary_key=True),
-                                      Column('event_day', Integer), Column('notification_day', Integer),
-                                      Column('xy', String))
-        firealerts_production = Table('ai_fire_alerts_production', metadata, Column('id', Integer, primary_key=True),
-                                      Column('event_day', Integer), Column('notification_day', Integer),
-                                      Column('xy', String))
-
-        metadata.create_all(conn)
         while True:
             batch = await consumer.fetch()
             if batch is not None:
                 for msg in batch:
                     serialized_record = msg.get_data()
+                    print(serialized_record)
                     record = json.loads(serialized_record)
+
                     if "temperature" in record:
                         with conn.connect() as connection:
                             insert_statement = temp_readings_production.insert().values(
-                                id=last_id_record + 1,
                                 day=record["day"],
-                                xy=f'{record["geospatial_x"]},{record["geospatial_y"]}',
+                                xy=func.point(record["geospatial_x"], record["geospatial_y"]),
                                 temperature=record["temperature"]
                             )
-                            last_id_record += 1
+                            print("Inserting temperature")
                             connection.execute(insert_statement)
+                            connection.commit()
                     elif "tweet" in record:
                         with conn.connect() as connection:
-                            insert_statement = tweets_production.insert().values(id=last_id_record + 1,
-                                                                                 day=record["day"],
-                                                                                 xy=f'{record["geospatial_x"]},{record["geospatial_y"]}',
-                                                                                 score=0, content=record["tweet"])
+                            insert_statement = tweets_production.insert().values(
+                                day=record["day"],
+                                xy=func.point(record["geospatial_x"], record["geospatial_y"]),
+                                score=0, content=record["tweet"])
+                            print("Inserting tweets")
                             connection.execute(insert_statement)
-                            last_id_record += 1
+                            connection.commit()
                     elif "event_day" in record:
                         with conn.connect() as connection:
-                            insert_statement = fire_alerts_production.insert().values(id=last_id_record + 1,
-                                                                                      event_day=record['event_day'],
-                                                                                      notification_day=record[
-                                                                                          'notification_day'],
-                                                                                      xy=f'{record["geospatial_x"]},{record["geospatial_y"]}')
+                            insert_statement = firealerts_production.insert().values(
+                                event_day=record['event_day'],
+                                xy=func.point(record["geospatial_x"], record["geospatial_y"]),
+                                notification_day=record[
+                                    'notification_day'],
+                            )
+                            print("Inserting firealerts")
                             connection.execute(insert_statement)
-                            last_id_record += 1
+                            connection.commit()
 
     except (MemphisError, MemphisConnectError) as e:
         print(e)
@@ -110,14 +139,20 @@ async def main(station_name):
         await memphis.close()
 
 
-async def run_ingress():
-    await asyncio.gather(
-        main("zakar-fire-alerts"),
-        main("zakar-temperature-readings"),
-        main("zakar-tweets")
-    )
+def run_ingress(task:str):
+    asyncio.run(main(task))
 
 
 # You can call this function from your main.py file(should work)
 if __name__ == "__main__":
-    asyncio.run(run_ingress())
+    threads = []
+
+    tasks = ["zakar-fire-alerts", "zakar-temperature-readings", "zakar-tweets"]
+
+    for task in tasks:
+        thread = threading.Thread(target=run_ingress, args=(task,))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
