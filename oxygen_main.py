@@ -29,7 +29,6 @@ async def monitor(currentDay):
     )
     conn = await engine.connect()
     
-    # Fetch all records with 'day' equal to currentDay and all records relative to it minus 7
     records = await conn.execute(text('SELECT * FROM temp_readings WHERE day >= :startDay AND day <= :endDay ORDER BY day ASC'), {'startDay': currentDay - 7, 'endDay': currentDay})
     records_list = [dict(record) for record in await records.fetchall()]
     #print(records_list)
@@ -49,8 +48,6 @@ asyncio.run(monitor(currentDay))
 async def run_all():
     await asyncio.gather(
         oxygen_ingress.run_ingress(),
-        monitor(0)
-        
     )
 '''
 

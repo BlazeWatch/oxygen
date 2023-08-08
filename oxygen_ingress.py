@@ -55,6 +55,7 @@ async def main(station_name):
             Column('xy', String),
             Column('temperature', Integer)
         )
+        metadata.create_all(conn)
         while True:
             batch = await consumer.fetch()
             if batch is not None:
@@ -72,10 +73,7 @@ async def main(station_name):
                             connection.execute(insert_statement)
                     print(f"Record {last_id_record} inserted!")
                     last_id_record+=1
-                        
-                        
-            
-        
+                            
     except (MemphisError, MemphisConnectError) as e:
         print(e)
         
