@@ -11,12 +11,9 @@ from memphis import Memphis, MemphisError, MemphisConnectError
 from psycopg2.extensions import register_adapter, AsIs
 from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, func
 from sqlalchemy.sql.type_api import UserDefinedType
-from transformers import pipeline
-from tqdm import tqdm
 import os
 
-classifier = pipeline("sentiment-analysis", model="./blaze_nlp")
- 
+
 # hacky solution for numpy64
 def addapt_numpy_float64(numpy_float64):
     return AsIs(numpy_float64)
@@ -59,7 +56,7 @@ metadata = MetaData()
  
 # This code is a mess.
 temp_readings_production = Table(
-    'temp_readings_production_test',
+    'temp_readings_production',
     metadata,
     Column('id', Integer, autoincrement=True, primary_key=True),
     Column('day', Integer),
@@ -67,72 +64,76 @@ temp_readings_production = Table(
     Column('temperature', Integer)
 )
  
-tweets_production = Table('tweets_production_test',
+tweets_production = Table('tweets_production',
                           metadata,
                           Column('id', Integer, autoincrement=True, primary_key=True),
                           Column('day', Integer), Column('xy', Point), Column('score', Integer),
                           Column('content', String))
  
-firealerts_production = Table('fire_alerts_production_test', metadata,
+firealerts_production = Table('fire_alerts_production', metadata,
                               Column('id', Integer, autoincrement=True, primary_key=True),
                               Column('event_day', Integer), Column('notification_day', Integer),
                               Column('xy', Point))
-ai_firealerts_production = Table('ai_fire_alerts_production_test', metadata,
+ai_firealerts_production = Table('ai_fire_alerts_production', metadata,
                                  Column('id', Integer, autoincrement=True, primary_key=True),
                                  Column('event_day', Integer), Column('notification_day', Integer),
                                  Column('xy', Point))
  
 metadata.create_all(conn)
 
-executor = ProcessPoolExecutor(max_workers=2)
+class BoundedExecutor:
+    def __init__(self, max_workers, max_queue_size):
+        self.executor = ProcessPoolExecutor(max_workers=max_workers)
+        self.semaphore = threading.Semaphore(max_queue_size + max_workers)
+        # max_queue_size for queue size, max_workers for workers.
 
-def insert_tweet(records):
-    print("Parsing classifying tweets...")
-    results = classifier([record['tweet'] for record in records])
-    print("Done classifiying!")
-    insert_statement = tweets_production.insert()
+    def submit(self, fn, *args, **kwargs):
+        self.semaphore.acquire() # block if necessary
+        try:
+            future = self.executor.submit(fn, *args, **kwargs)
+        except:
+            self.semaphore.release()
+            raise
+        else:
+            future.add_done_callback(lambda x: self.semaphore.release())
+            return future
+
+    def shutdown(self):
+        self.executor.shutdown()
+
+executor = BoundedExecutor(max_workers=4, max_queue_size=50)
+
+def insert(station, records):
     values_list = []
-
-    for index, result in enumerate(results):
-        record = records[index]
-        fire = result['label'] == "yes_fire"
-        score = result['score'] if fire else -result['score']
-
-        if fire:
-            print(record)
-            print(score)
-
-        values_list.append({
-            'day': record["day"],
-            'xy': func.point(record["geospatial_x"], record["geospatial_y"]),
-            'score': score,
-            'content': record["tweet"]
-        })
-
-    with conn.connect() as connection:
-        connection.execute(insert_statement.values(values_list))
-        connection.commit()
- 
-def insert_temp(record):
-
-    if "temperature" in record:
+    if station == "zakar-tweets":
+        insert_statement = tweets_production.insert()
+        for record in records:
+            values_list.append({
+                'day': record["day"],
+                'content': record["tweet"],
+                'xy': func.point(record["geospatial_x"], record["geospatial_y"]),
+            })
+    elif station == "zakar-fire-alerts":
+        insert_statement = firealerts_production.insert()
+        for record in records:
+            values_list.append({
+                'event_day': record['event_day'],
+                'notification_day': record['notification_day'],
+                'xy': func.point(record["geospatial_x"], record["geospatial_y"]),
+            })
+    elif station == "zakar-temperature-readings":
+        insert_statement = temp_readings_production.insert()
+        for record in records:
+            values_list.append({
+                'day': record["day"],
+                'temperature': record["temperature"],
+                'xy': func.point(record["geospatial_x"], record["geospatial_y"]),
+            })
+    else:
+        insert_statement = []
+    if len(values_list) > 0:
         with conn.connect() as connection:
-            insert_statement = temp_readings_production.insert().values(
-                day=record["day"],
-                xy=func.point(record["geospatial_x"], record["geospatial_y"]),
-                temperature=record["temperature"]
-            )
-            connection.execute(insert_statement)
-            connection.commit()
-    elif "event_day" in record:
-        with conn.connect() as connection:
-            insert_statement = firealerts_production.insert().values(
-                event_day=record['event_day'],
-                xy=func.point(record["geospatial_x"], record["geospatial_y"]),
-                notification_day=record[
-                    'notification_day'],
-            )
-            connection.execute(insert_statement)
+            connection.execute(insert_statement.values(values_list))
             connection.commit()
  
  
@@ -148,29 +149,37 @@ async def main(station_name):
         memphis = Memphis()
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
         print(f"Memphis actualized and listening to {station_name}!")
-        consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer-4",
+        consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer-81",
                                           consumer_group="")
  
         while True:
-            batch = await consumer.fetch(400)
+            batch = await consumer.fetch(5000)
 
             if batch is not None:
-                if station_name == "zakar-tweets":
-                    records = []
-
-                    for msg in batch:
+                records = []
+                for msg in batch:
+                    try:
                         serialized_record = msg.get_data()
                         record = json.loads(serialized_record)
+                        if record["geospatial_x"] is None:
+                            # warp trolling
+                            continue
                         records.append(record)
-                    # executor.submit(insert_tweet, records)
-                    insert_tweet(records)
-                    continue
-                for msg in batch:
-                    serialized_record = msg.get_data()
-                    record = json.loads(serialized_record)
-                    insert_temp(record)
+                    except Exception:
+                        print(f"Failed parsing json in {station_name}")
+                        print(f"Serialized Record {serialized_record}")
+                    finally:
+                        await msg.ack()
+                print(f"Row from {station_name}: {len(records)}")
+                if station_name == "zakar-fire-alerts":
+                    insert(station_name, records)
+                elif len(records) > 0:
+                    executor.submit(
+                            insert,
+                            station_name, records
+                    )
 
- 
+
     except (MemphisError, MemphisConnectError) as e:
         print(e)
  
@@ -187,12 +196,12 @@ if __name__ == "__main__":
     threads = []
 
     tasks = ["zakar-fire-alerts", "zakar-temperature-readings", "zakar-tweets"]
-    # tasks = ["zakar-tweets"]
+    # tasks = ["zakar-fire-alerts"]
 
     for task in tasks:
         thread = threading.Thread(target=run_ingress, args=(task,))
         threads.append(thread)
         thread.start()
- 
+
     for thread in threads:
         thread.join()
