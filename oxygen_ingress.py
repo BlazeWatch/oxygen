@@ -47,16 +47,17 @@ async def main(station_name):
         consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer", consumer_group="")
         metadata = MetaData()
         #This code is a mess.
-        temp_readings_duplicate = Table(
-            'temp_readings_duplicate',
+        temp_readings_production = Table(
+            'temp_readings_production',
             metadata,
             Column('id', Integer, primary_key=True),
             Column('day', Integer),
             Column('xy', String),
             Column('temperature', Integer)
         )
-        tweets_duplicate = Table ('tweets_duplicate',metadata,Column('id',Integer,primary_key=True),Column('day', Integer),
-            Column('xy', String),Column('score',Integer),Column('content',String))
+        tweets_production = Table ('tweets_production',metadata,Column('id',Integer,primary_key=True),Column('day', Integer),Column('xy', String),Column('score',Integer),Column('content',String))
+
+        firealerts_production = Table('firealerts_production',metadata,Column('id',Integer,primary_key=True),Column('event_day',Integer),Column('notification_day',Integer),Column('xy', String))
         
         metadata.create_all(conn)
         while True:
@@ -67,7 +68,7 @@ async def main(station_name):
                     record = json.loads(serialized_record)
                     if "temperature" in record:
                         with conn.connect() as connection:
-                            insert_statement = temp_readings_duplicate.insert().values(
+                            insert_statement = temp_readings_production.insert().values(
                                 id=last_id_record+1,
                                 day=record["day"],
                                 xy=f'{record["geospatial_x"]},{record["geospatial_y"]}',
@@ -77,8 +78,12 @@ async def main(station_name):
                             connection.execute(insert_statement)
                     elif "tweet" in record:
                         with conn.connect() as connection:
-                            currday = record['day']
-                            insert_statement  = tweets_duplicate.insert().values(id=last_id_record+1,day=record["day"],xy=f'{record["geospatial_x"]},{record["geospatial_y"]}',score=0,content=record["tweet"])
+                            insert_statement = tweets_production.insert().values(id=last_id_record+1,day=record["day"],xy=f'{record["geospatial_x"]},{record["geospatial_y"]}',score=0,content=record["tweet"])
+                            connection.execute(insert_statement)
+                            last_id_record+=1
+                    elif "event_day" in record:
+                        with conn.connect() as connection:
+                            insert_statement = firealerts_production.insert().values(id=last_id_record+1,event_day=record['event_day'],notification_day=record['notification_day'],xy=f'{record["geospatial_x"]},{record["geospatial_y"]}')
                             connection.execute(insert_statement)
                             last_id_record+=1
                             
