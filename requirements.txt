@@ -7,3 +7,5 @@ sqlalchemy_aio
 asyncio
 psycopg2
 geoalchemy2
+transformers
+torch
