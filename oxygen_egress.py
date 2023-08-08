@@ -28,10 +28,6 @@ async def egress(station_name,msg):
         await memphis.close()
 
 
-msg = {'day': 5023, 'geospatial_x': 261, 'geospatial_y': 18}
-print(type(msg))
-asyncio.run(egress("zakar-tweets-2",msg))
-#Remember that u can call and set a task queue.
 
 
 

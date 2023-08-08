@@ -48,6 +48,7 @@ asyncio.run(monitor(currentDay))
 async def run_all():
     await asyncio.gather(
         oxygen_ingress.run_ingress(),
+        monitor(currentDay)
     )
 '''
 
