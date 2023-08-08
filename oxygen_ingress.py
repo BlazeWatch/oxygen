@@ -57,7 +57,8 @@ async def main(station_name):
         )
         tweets_production = Table ('tweets_production',metadata,Column('id',Integer,primary_key=True),Column('day', Integer),Column('xy', String),Column('score',Integer),Column('content',String))
 
-        firealerts_production = Table('firealerts_production',metadata,Column('id',Integer,primary_key=True),Column('event_day',Integer),Column('notification_day',Integer),Column('xy', String))
+        firealerts_production = Table('fire_alerts_production',metadata,Column('id',Integer,primary_key=True),Column('event_day',Integer),Column('notification_day',Integer),Column('xy', String))
+        firealerts_production = Table('ai_fire_alerts_production',metadata,Column('id',Integer,primary_key=True),Column('event_day',Integer),Column('notification_day',Integer),Column('xy', String))
         
         metadata.create_all(conn)
         while True:
@@ -83,7 +84,7 @@ async def main(station_name):
                             last_id_record+=1
                     elif "event_day" in record:
                         with conn.connect() as connection:
-                            insert_statement = firealerts_production.insert().values(id=last_id_record+1,event_day=record['event_day'],notification_day=record['notification_day'],xy=f'{record["geospatial_x"]},{record["geospatial_y"]}')
+                            insert_statement = fire_alerts_production.insert().values(id=last_id_record+1,event_day=record['event_day'],notification_day=record['notification_day'],xy=f'{record["geospatial_x"]},{record["geospatial_y"]}')
                             connection.execute(insert_statement)
                             last_id_record+=1
                             
