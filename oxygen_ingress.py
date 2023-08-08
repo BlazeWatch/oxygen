@@ -81,28 +81,6 @@ ai_firealerts_production = Table('ai_fire_alerts_production', metadata,
  
 metadata.create_all(conn)
 
-class BoundedExecutor:
-    def __init__(self, max_workers, max_queue_size):
-        self.executor = ProcessPoolExecutor(max_workers=max_workers)
-        self.semaphore = threading.Semaphore(max_queue_size + max_workers)
-        # max_queue_size for queue size, max_workers for workers.
-
-    def submit(self, fn, *args, **kwargs):
-        self.semaphore.acquire() # block if necessary
-        try:
-            future = self.executor.submit(fn, *args, **kwargs)
-        except:
-            self.semaphore.release()
-            raise
-        else:
-            future.add_done_callback(lambda x: self.semaphore.release())
-            return future
-
-    def shutdown(self):
-        self.executor.shutdown()
-
-executor = BoundedExecutor(max_workers=4, max_queue_size=50)
-
 def insert(station, records):
     values_list = []
     if station == "zakar-tweets":
@@ -116,6 +94,9 @@ def insert(station, records):
     elif station == "zakar-fire-alerts":
         insert_statement = firealerts_production.insert()
         for record in records:
+            if record.get("event_day") is None:
+                continue
+
             values_list.append({
                 'event_day': record['event_day'],
                 'notification_day': record['notification_day'],
@@ -149,7 +130,7 @@ async def main(station_name):
         memphis = Memphis()
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
         print(f"Memphis actualized and listening to {station_name}!")
-        consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer-81",
+        consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer-85",
                                           consumer_group="")
  
         while True:
@@ -171,13 +152,8 @@ async def main(station_name):
                     finally:
                         await msg.ack()
                 print(f"Row from {station_name}: {len(records)}")
-                if station_name == "zakar-fire-alerts":
-                    insert(station_name, records)
-                elif len(records) > 0:
-                    executor.submit(
-                            insert,
-                            station_name, records
-                    )
+                insert(station_name, records)
+
 
 
     except (MemphisError, MemphisConnectError) as e:
