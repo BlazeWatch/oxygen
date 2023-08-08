@@ -55,6 +55,9 @@ async def main(station_name):
             Column('xy', String),
             Column('temperature', Integer)
         )
+        tweets_duplicate = Table ('tweets_duplicate',metadata,Column('id',Integer,primary_key=True),Column('day', Integer),
+            Column('xy', String),Column('score',Integer),Column('content',String))
+        
         metadata.create_all(conn)
         while True:
             batch = await consumer.fetch()
@@ -70,9 +73,14 @@ async def main(station_name):
                                 xy=f'{record["geospatial_x"]},{record["geospatial_y"]}',
                                 temperature=record["temperature"]
                             )
+                            last_id_record+=1
                             connection.execute(insert_statement)
-                    print(f"Record {last_id_record} inserted!")
-                    last_id_record+=1
+                    elif "tweet" in record:
+                        with conn.connect() as connection:
+                            currday = record['day']
+                            insert_statement  = tweets_duplicate.insert().values(id=last_id_record+1,day=record["day"],xy=f'{record["geospatial_x"]},{record["geospatial_y"]}',score=0,content=record["tweet"])
+                            connection.execute(insert_statement)
+                            last_id_record+=1
                             
     except (MemphisError, MemphisConnectError) as e:
         print(e)
