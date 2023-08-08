@@ -1,5 +1,8 @@
 memphis-py
 python-dotenv
-supabase-py
 sqlalchemy
 pandas
+numpy
+sqlalchemy_aio
+asyncio
+psycopg2
