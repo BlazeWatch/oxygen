@@ -18,6 +18,6 @@ DB_PASSWORD=string
 You can run the Oxygen Service by building and running the Docker container in the root repository directory:
 
 ```bash
-docker build -t oxygen_backend . 
-docker run oxygen_backend
+docker build . --no-cache -t oxygen_backend:latest 
+docker run oxygen_backend:latest 
 ```
