@@ -118,7 +118,7 @@ def insert(station, records):
             connection.commit()
  
  
-async def main(station_name):
+async def station_loop(station_name):
     try:
         load_dotenv()
         host = os.getenv("MEMPHIS_HOSTNAME")
@@ -164,11 +164,11 @@ async def main(station_name):
  
  
 def run_ingress(task: str):
-    asyncio.run(main(task))
+    asyncio.run(station_loop(task))
  
  
 # You can call this function from your main.py file(should work)
-if __name__ == "__main__":
+def main():
     threads = []
 
     tasks = ["zakar-fire-alerts", "zakar-temperature-readings", "zakar-tweets"]
