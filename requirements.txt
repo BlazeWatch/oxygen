@@ -12,3 +12,4 @@ torch
 flask
 scikit-learn
 tensorflow-cpu
+xformers
