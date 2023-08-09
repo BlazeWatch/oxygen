@@ -9,3 +9,6 @@ psycopg2
 geoalchemy2
 transformers
 torch
+flask
+scikit-learn
+tenserflow

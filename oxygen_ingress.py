@@ -130,7 +130,7 @@ async def main(station_name):
         memphis = Memphis()
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
         print(f"Memphis actualized and listening to {station_name}!")
-        consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer-85",
+        consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer-85    ",
                                           consumer_group="")
  
         while True:
