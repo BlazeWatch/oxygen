@@ -115,8 +115,6 @@ def insert(station, records):
     if len(values_list) > 0:
         with conn.connect() as connection:
             connection.execute(insert_statement.values(values_list))
-            connection.commit()
- 
  
 async def station_loop(station_name):
     try:
@@ -125,12 +123,11 @@ async def station_loop(station_name):
         username = os.getenv("MEMPHIS_USERNAME")
         password = os.getenv("MEMPHIS_PASSWORD")
         account_id = os.getenv("MEMPHIS_ACCOUNT_ID")
-        print(host, username, password, account_id)
  
         memphis = Memphis()
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
         print(f"Memphis actualized and listening to {station_name}!")
-        consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer-85    ",
+        consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer",
                                           consumer_group="")
  
         while True:

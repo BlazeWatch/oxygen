@@ -27,7 +27,7 @@ register_adapter(numpy.int64, addapt_numpy_int64)
 # Run all.   
 async def run_all():
     await asyncio.gather(
-        oxygen_ingress.station_loop(),
+        oxygen_ingress.main(),
         do_crazy_ai_things.main()
     )
 

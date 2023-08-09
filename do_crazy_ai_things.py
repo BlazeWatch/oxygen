@@ -1,25 +1,25 @@
-import numpy
-from dotenv import load_dotenv
-from psycopg2.extensions import register_adapter, AsIs
-from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, func, text
-from sqlalchemy.sql.type_api import UserDefinedType
-import json
-# import os
-from tqdm import tqdm
-import pandas as pd
-from memphis import Memphis, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
-
-
-
 def main():
-    # Load env vars
+    import numpy
+    from dotenv import load_dotenv
+    from psycopg2.extensions import register_adapter, AsIs
+    from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, func, text
+    from sqlalchemy.sql.type_api import UserDefinedType
+    import json
+    import os
+    from tqdm import tqdm
+    import pandas as pd
+    from memphis import Memphis, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
+
     load_dotenv()
 
-    # Define environment variables
     host = os.getenv("MEMPHIS_HOSTNAME")
     username = os.getenv("MEMPHIS_USERNAME")
     password = os.getenv("MEMPHIS_PASSWORD")
     account_id = os.getenv("MEMPHIS_ACCOUNT_ID")
+    pg_user = os.getenv('PG_USER')
+    pg_password = os.getenv('PG_PASSWORD')
+    pg_host = os.getenv('PG_HOST')
+    pg_dbname = os.getenv('PG_DBNAME')
 
     # hacky solution for numpy64
     def addapt_numpy_float64(numpy_float64):
@@ -34,10 +34,8 @@ def main():
     register_adapter(numpy.int64, addapt_numpy_int64)
     #
     # # Load env vars
-    load_dotenv()
-
     conn = create_engine(
-        f"postgresql://{os.getenv('PG_USER')}:{os.getenv('PG_PASSWORD')}@{os.getenv('PG_HOST')}/{os.getenv('PG_DBNAME')}"
+        f"postgresql://{pg_user}:{pg_password}@{pg_host}/{pg_dbname}"
     )
     #
     #
@@ -310,7 +308,6 @@ def main():
         if len(value_list) > 0:
             with conn.connect() as connection:
                 connection.execute(insert_statement.values(value_list))
-                connection.commit()
 
     data = result
     # Split the data into batches
