@@ -1,4 +1,3 @@
-
 # 🌬️ Oxygen: The Breath of BlazeWatch 🌬️
 
 Oxygen is the backend code powering BlazeWatch, handling both Ingress (incoming messages) and Egress (broadcasting to social media stations) through Memphis. With data storage in Supabase and seamless integration with Postgres, it fuels the flames of fire detection.
