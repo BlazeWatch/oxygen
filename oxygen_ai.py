@@ -199,10 +199,15 @@ def main():
                 print(f"Batch {i + 1}/{len(batched_tweets)}")
                 predictions = predict_fire(batched_tweets[i], batched_temperatures[i])
                 msgs = []
+                highest_score = {
+                    'score': 0,
+                    'day': 0,
+                    'x': -1,
+                    'y': -1
+                }
                 for j, key in enumerate(keys[i * batch_size: (i + 1) * batch_size]):
+                    day, x, y = parse_key(key)
                     if predictions[j] > 0.7:
-                        day, x, y = parse_key(key)
-
                         msg = {
                             "day": day,
                             "geospatial_x": x,
@@ -214,8 +219,16 @@ def main():
                         msg['score'] = predictions[j]
                         msgs.append(msg)
 
+                    if predictions[j] > highest_score['score']:
+                        highest_score['score'] = predictions[j]
+                        highest_score['day'] = day
+                        highest_score['x'] = x
+                        highest_score['y'] = y
+
                 if len(msgs) > 0:
                     postgres_egress(msgs)
+
+                print(f"Highest score: {highest_score['score']} on day {highest_score['day']} at ({highest_score['x']}, {highest_score['y']})")
 
         except (MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError) as e:
             print(e)
