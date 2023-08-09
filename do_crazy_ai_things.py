@@ -207,15 +207,16 @@ def main():
             output.append((sample, i+start_day))
         return output
 
-    print("Temp starting")
+    print("Temperature starting")
     temp_readings = pd.read_sql_query(text("SELECT * FROM public.temp_readings_production"), conn)
 
     temp_readings = temp_readings.sort_values("day")
 
     start_day = temp_readings.iloc[0]["day"]
-    print("Temp done")
+    print("Temperature done")
     samples = []
-    for name, group in tqdm(temp_readings.groupby("xy")):
+    print("Rolling samples")
+    for name, group in temp_readings.groupby("xy"):
         group = group.sort_values("day")
         temps = rolling_samples(start_day, group["temperature"].set_axis(group["day"]))
         
@@ -227,14 +228,12 @@ def main():
             })
     print("Sorting samples")
     samples = sorted(samples, key=lambda x: x["day"])
-    print("Sorting dome")
+    print("Sorting done")
     # with open("samples.pickle", "wb") as f:
     #     pickle.dump(samples, f)
 
-    print("Loading tweets (dont crash plz)")
+    print("Loading tweets")
     tweets = pd.read_sql_query(text("SELECT * FROM public.tweets_production"), conn)
-
-    tqdm.pandas()
 
     merged_data = pd.merge(samples, tweets, how='left', on=['xy', 'day']).drop(["id", "score"], axis=1).fillna("")
 
@@ -313,7 +312,7 @@ def main():
     keys = list(data.keys())
     batched_tweets = []
     batched_temperatures = []
-    for i in tqdm(range(0, len(keys), batch_size)):
+    for i in range(0, len(keys), batch_size):
         batch_tweets = [data[key][0] for key in keys[i:i+batch_size]]
         batch_temperatures = [data[key][1] for key in keys[i:i+batch_size]]
         batched_tweets.append(batch_tweets)
@@ -321,7 +320,8 @@ def main():
 
     # Call predict_fire on each batch and map the outputs to the keys
     results = {}
-    for i in tqdm(range(len(batched_tweets))):
+    for i in range(len(batched_tweets)):
+        print(f"Batch {i+1}/{len(batched_tweets)}")
         predictions = predict_fire(batched_tweets[i], batched_temperatures[i])
         msgs = []
         for j, key in enumerate(keys[i*batch_size : (i+1)*batch_size]):

@@ -1,9 +1,7 @@
-import asyncio
-
 import numpy
 from dotenv import load_dotenv
 from psycopg2.extensions import register_adapter, AsIs
-
+from multiprocessing import Process
 import do_crazy_ai_things
 import oxygen_ingress
 
@@ -23,12 +21,17 @@ register_adapter(numpy.float64, addapt_numpy_float64)
 register_adapter(numpy.int64, addapt_numpy_int64)
 
 
-# Run all.   
-async def run_all():
-    await asyncio.gather(
-        oxygen_ingress.main(),
-        do_crazy_ai_things.main()
-    )
+# Run all.
+def run_all():
+    p1 = Process(target=oxygen_ingress.main)
+    p2 = Process(target=do_crazy_ai_things.main)
+
+    p1.start()
+    p2.start()
+
+    p1.join()
+    p2.join()
 
 while True:
-    asyncio.run(run_all())
+    run_all()
+

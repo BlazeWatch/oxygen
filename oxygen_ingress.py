@@ -166,6 +166,7 @@ def run_ingress(task: str):
  
 # You can call this function from your main.py file(should work)
 def main():
+    print("Starting Memphis Ingress")
     threads = []
 
     tasks = ["zakar-fire-alerts", "zakar-temperature-readings", "zakar-tweets"]
