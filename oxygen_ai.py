@@ -322,17 +322,15 @@ def main():
     for sample in complete_samples:
         key = f"{sample['day']}({sample['xy']})"
         items = [item for sublist in map(dict_to_example, [sample]) for item in sublist]
-        data[key] = {
-            'info': items
-        }
+        data[key] = items
 
     # Split the data into batches
     keys = list(data.keys())
     batched_tweets = []
     batched_temperatures = []
     for i in range(0, len(keys), batch_size):
-        batch_tweets = [data[key]['info'][0] for key in keys[i:i + batch_size]]
-        batch_temperatures = [data[key]['info'][1] for key in keys[i:i + batch_size]]
+        batch_tweets = [data[key][0] for key in keys[i:i + batch_size]]
+        batch_temperatures = [data[key][1] for key in keys[i:i + batch_size]]
         batched_tweets.append(batch_tweets)
         batched_temperatures.append(batch_temperatures)
 
