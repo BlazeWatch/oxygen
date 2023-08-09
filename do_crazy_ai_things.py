@@ -227,7 +227,7 @@ def main():
                 "temp": temp
             })
     print("Sorting samples")
-    samples = sorted(samples, key=lambda x: x["day"])
+    samples = pd.DataFrame.from_dict(sorted(samples, key=lambda x: x["day"]))
     print("Sorting done")
     # with open("samples.pickle", "wb") as f:
     #     pickle.dump(samples, f)

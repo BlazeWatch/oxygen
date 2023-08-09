@@ -148,7 +148,8 @@ async def station_loop(station_name):
                         print(f"Serialized Record {serialized_record}")
                     finally:
                         await msg.ack()
-                print(f"Row from {station_name}: {len(records)}")
+                if len(records) > 0:
+                    print(f"Row from {station_name}: {len(records)}")
                 insert(station_name, records)
 
 
