@@ -1,12 +1,11 @@
 import asyncio
-import os
+
 import numpy
-import oxygen_ingress
-import do_crazy_ai_things
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
 from psycopg2.extensions import register_adapter, AsIs
-from sqlalchemy_aio import ASYNCIO_STRATEGY
+
+import do_crazy_ai_things
+import oxygen_ingress
 
 load_dotenv()
 

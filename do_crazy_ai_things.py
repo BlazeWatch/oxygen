@@ -1,13 +1,13 @@
 def main():
+    print('Started AI Process')
+
     import numpy
     from dotenv import load_dotenv
     from psycopg2.extensions import register_adapter, AsIs
-    from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, func, text
+    from sqlalchemy import create_engine, Table, Column, Integer, MetaData
     from sqlalchemy.sql.type_api import UserDefinedType
     import json
     import os
-    from tqdm import tqdm
-    import pandas as pd
     from memphis import Memphis, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
 
     load_dotenv()
@@ -76,14 +76,13 @@ def main():
 
     metadata.create_all(conn)
 
-    from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, func, select, and_, text
+    from sqlalchemy import create_engine, func, text
     from dotenv import load_dotenv
     import os
     import pandas as pd
     from tqdm import tqdm
     from transformers import pipeline
     import keras
-    import numpy as np
     import pickle
     from typing import Union
     import numpy as np
