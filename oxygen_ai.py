@@ -47,6 +47,10 @@ def main():
         f"postgresql://{pg_user}:{pg_password}@{pg_host}/{pg_dbname}"
     )
 
+    classifier = pipeline("sentiment-analysis", model="./blaze_nlp")
+    lstm_model = keras.models.load_model("lstm_model.h5")
+    scaler = pickle.load(open("scaler.pkl", "rb"))
+
     class Point(UserDefinedType):
         def get_col_spec(self):
             return "POINT"
@@ -159,6 +163,8 @@ def main():
             for tweet in tweet_batch_result:
                 sentiment = derive_sentiment(tweet)
                 average_tweet_sentiment += sentiment * (0.2 if sentiment < 0 else 1)
+
+            average_tweet_sentiment = average_tweet_sentiment / len(tweet_batch_result)
             average_tweet_sentiment = round(average_tweet_sentiment)
 
             temperature_sentiment = derive_sentiment(temperature_batch_result)
@@ -188,7 +194,7 @@ def main():
         y = int(y_str)
         return day, x, y
 
-    async def ai_model(batched_tweets, batched_temperatures, keys):
+    async def ai_model(batched_tweets, batched_temperatures, batched_keys):
         memphis = Memphis()
         station_name = "zakar-fire-predictions"
         try:
@@ -205,7 +211,13 @@ def main():
                     'x': -1,
                     'y': -1
                 }
-                for j, key in enumerate(keys[i * batch_size: (i + 1) * batch_size]):
+                lowest_score = {
+                    'score': 1,
+                    'day': 0,
+                    'x': -1,
+                    'y': -1
+                }
+                for j, key in enumerate(batched_keys[i]):
                     day, x, y = parse_key(key)
                     if predictions[j] > 0.7:
                         msg = {
@@ -224,11 +236,19 @@ def main():
                         highest_score['day'] = day
                         highest_score['x'] = x
                         highest_score['y'] = y
+                        highest_score['j'] = j
+                    elif predictions[j] < lowest_score['score']:
+                        lowest_score['score'] = predictions[j]
+                        lowest_score['day'] = day
+                        lowest_score['x'] = x
+                        lowest_score['y'] = y
+                        lowest_score['j'] = j
 
                 if len(msgs) > 0:
                     postgres_egress(msgs)
 
                 print(f"Highest score: {highest_score['score']} on day {highest_score['day']} at ({highest_score['x']}, {highest_score['y']})")
+                print(f"Lowest score: {lowest_score['score']} on day {lowest_score['day']} at ({lowest_score['x']}, {lowest_score['y']})")
 
         except (MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError) as e:
             print(e)
@@ -292,8 +312,6 @@ def main():
     print("Sorting samples")
     samples = pd.DataFrame.from_dict(sorted(samples, key=lambda x: x["day"]))
     print("Sorting done")
-    # with open("samples.pickle", "wb") as f:
-    #     pickle.dump(samples, f)
 
     print("Loading tweets")
     tweets = pd.read_sql_query(text("SELECT * FROM public.tweets_production"), conn)
@@ -310,9 +328,6 @@ def main():
 
     complete_samples = complete_samples.to_dict(orient='records')
 
-    classifier = pipeline("sentiment-analysis", model="./blaze_nlp")
-    lstm_model = keras.models.load_model("lstm_model.h5")
-    scaler = pickle.load(open("scaler.pkl", "rb"))
 
     # Define batch size
     batch_size = 128
@@ -326,13 +341,16 @@ def main():
 
     # Split the data into batches
     keys = list(data.keys())
+    batched_keys = []
     batched_tweets = []
     batched_temperatures = []
     for i in range(0, len(keys), batch_size):
+        batch_keys = keys[i:i + batch_size]
         batch_tweets = [data[key][0] for key in keys[i:i + batch_size]]
         batch_temperatures = [data[key][1] for key in keys[i:i + batch_size]]
+        batched_keys.append(batch_keys)
         batched_tweets.append(batch_tweets)
         batched_temperatures.append(batch_temperatures)
 
     # Call predict_fire on each batch and map the outputs to the keys
-    asyncio.run(ai_model(batched_tweets, batched_temperatures, keys))
+    asyncio.run(ai_model(batched_tweets, batched_temperatures, batched_keys))
