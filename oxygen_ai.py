@@ -1,6 +1,6 @@
 import asyncio
 
-from sqlalchemy import Float
+from sqlalchemy import Float, String
 
 
 def main():
@@ -174,7 +174,7 @@ def main():
         output = []
         for i in range(window, len(series)):
             sample = series[i - window: i].tolist()
-            output.append((sample, i + start_day))
+            output.append((sample, i + start_day - 1))
         return output
 
     def dict_to_example(sample):
@@ -188,7 +188,7 @@ def main():
         y = int(y_str)
         return day, x, y
 
-    async def ai_model(batched_tweets, batched_temperatures):
+    async def ai_model(batched_tweets, batched_temperatures, keys):
         memphis = Memphis()
         station_name = "zakar-fire-predictions"
         try:
@@ -232,8 +232,10 @@ def main():
             x = msg['geospatial_x']
             y = msg['geospatial_y']
             score = msg['score']
+            id = f"{day}({x},{y})"
 
             value_list.append({
+                'id': id,
                 'day': day,
                 'xy': func.point(x, y),
                 'score': score
@@ -241,13 +243,14 @@ def main():
 
         if len(value_list) > 0:
             with conn.connect() as connection:
+                print(f"Inserting {len(value_list)} predictions into postgres")
                 connection.execute(insert_statement.values(value_list))
                 connection.commit()
 
     metadata = MetaData()
 
     ai_firealerts_production = Table('ai_fire_alerts_production', metadata,
-                                     Column('id', Integer, autoincrement=True, primary_key=True),
+                                     Column('id', String, primary_key=True),
                                      Column('day', Integer),
                                      Column('xy', Point),
                                      Column('score', Float))
@@ -290,6 +293,8 @@ def main():
         temperature=pd.NamedAgg(column='temp', aggfunc='first')
     ).reset_index()
 
+    complete_samples = complete_samples.sort_values("day")
+
     complete_samples = complete_samples.to_dict(orient='records')
 
     classifier = pipeline("sentiment-analysis", model="./blaze_nlp")
@@ -300,22 +305,23 @@ def main():
     batch_size = 128
 
     # print(test_samples[0])
-    result = {}
+    data = {}
     for sample in complete_samples:
         key = f"{sample['day']}({sample['xy']})"
         items = [item for sublist in map(dict_to_example, [sample]) for item in sublist]
-        result[key] = items
+        data[key] = {
+            'info': items
+        }
 
-    data = result
     # Split the data into batches
     keys = list(data.keys())
     batched_tweets = []
     batched_temperatures = []
     for i in range(0, len(keys), batch_size):
-        batch_tweets = [data[key][0] for key in keys[i:i + batch_size]]
-        batch_temperatures = [data[key][1] for key in keys[i:i + batch_size]]
+        batch_tweets = [data[key]['info'][0] for key in keys[i:i + batch_size]]
+        batch_temperatures = [data[key]['info'][1] for key in keys[i:i + batch_size]]
         batched_tweets.append(batch_tweets)
         batched_temperatures.append(batch_temperatures)
 
     # Call predict_fire on each batch and map the outputs to the keys
-    asyncio.run(ai_model(batched_tweets, batched_temperatures))
+    asyncio.run(ai_model(batched_tweets, batched_temperatures, keys))
