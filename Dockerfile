@@ -8,4 +8,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY oxygen_main.py .
 
-CMD ["python3", "oxygen_ingress.py"]
+CMD ["python3", "oxygen_main.py"]
