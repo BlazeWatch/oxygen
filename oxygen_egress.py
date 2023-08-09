@@ -15,6 +15,7 @@ account_id = os.getenv("MEMPHIS_ACCOUNT_ID")
 
 async def egress(station_name, msg):
     try:
+        
         memphis = Memphis()
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
         producer = await memphis.producer(station_name=f"{station_name}",
