@@ -1,6 +1,8 @@
 import asyncio
 import os
 import numpy
+import oxygen_ingress
+import do_crazy_ai_things
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from psycopg2.extensions import register_adapter, AsIs
@@ -22,34 +24,12 @@ register_adapter(numpy.float64, addapt_numpy_float64)
 register_adapter(numpy.int64, addapt_numpy_int64)
 
 
-async def monitor(currentDay):
-    engine = create_engine(
-        f"postgresql://{os.getenv('PG_USER')}:{os.getenv('PG_PASSWORD')}@{os.getenv('PG_HOST')}/{os.getenv('PG_DBNAME')}",
-        strategy=ASYNCIO_STRATEGY
-    )
-    conn = await engine.connect()
-
-    records = await conn.execute(
-        text('SELECT * FROM temp_readings WHERE day >= :startDay AND day <= :endDay ORDER BY day ASC'),
-        {'startDay': currentDay - 7, 'endDay': currentDay})
-    records_list = [dict(record) for record in await records.fetchall()]
-    currentDay += 7
-    await asyncio.sleep(1)
-    await monitor(currentDay)
-    await conn.close()
-
-
-currentDay = 7
-asyncio.run(monitor(currentDay))
-
-# Run all.
-'''    
+# Run all.   
 async def run_all():
     await asyncio.gather(
-        oxygen_ingress.run_ingress(),
-        monitor(currentDay)
+        oxygen_ingress.station_loop(),
+        do_crazy_ai_things.main()
     )
-'''
 
-# Runs Ingress + Egress + Monitor Function
-# asyncio.run(run_all())
+while True:
+    asyncio.run(run_all())
