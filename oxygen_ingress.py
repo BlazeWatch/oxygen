@@ -3,15 +3,12 @@ import asyncio
 import json
 import os
 import threading
-from concurrent.futures import ProcessPoolExecutor
- 
 import numpy
 from dotenv import load_dotenv
 from memphis import Memphis, MemphisError, MemphisConnectError
 from psycopg2.extensions import register_adapter, AsIs
 from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, func
 from sqlalchemy.sql.type_api import UserDefinedType
-import os
 
 
 # hacky solution for numpy64
@@ -126,7 +123,7 @@ async def station_loop(station_name):
  
         memphis = Memphis()
         await memphis.connect(host=host, username=username, password=password, account_id=account_id)
-        print(f"Memphis actualized and listening to {station_name}!")
+        print(f"Memphis initialized and listening to {station_name}!")
         consumer = await memphis.consumer(station_name=f"{station_name}", consumer_name=f"{station_name}-consumer",
                                           consumer_group="")
  
@@ -145,12 +142,13 @@ async def station_loop(station_name):
                         records.append(record)
                     except Exception:
                         print(f"Failed parsing json in {station_name}")
-                        print(f"Serialized Record {serialized_record}")
                     finally:
                         await msg.ack()
+                insert(station_name, records)
                 if len(records) > 0:
                     print(f"Row from {station_name}: {len(records)}")
-                insert(station_name, records)
+                else:
+                    break
 
 
 

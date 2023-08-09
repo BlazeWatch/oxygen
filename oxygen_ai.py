@@ -1,14 +1,26 @@
+import asyncio
+
+from sqlalchemy import Float
+
+
 def main():
     print('Started AI Process')
 
     import numpy
-    from dotenv import load_dotenv
     from psycopg2.extensions import register_adapter, AsIs
-    from sqlalchemy import create_engine, Table, Column, Integer, MetaData
+    from sqlalchemy import Table, Column, Integer, MetaData
     from sqlalchemy.sql.type_api import UserDefinedType
     import json
-    import os
     from memphis import Memphis, MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError
+    from sqlalchemy import create_engine, func, text
+    from dotenv import load_dotenv
+    import os
+    import pandas as pd
+    from transformers import pipeline
+    import keras
+    import pickle
+    from typing import Union
+    import numpy as np
 
     load_dotenv()
 
@@ -25,20 +37,16 @@ def main():
     def addapt_numpy_float64(numpy_float64):
         return AsIs(numpy_float64)
 
-
     def addapt_numpy_int64(numpy_int64):
         return AsIs(numpy_int64)
 
-    #
     register_adapter(numpy.float64, addapt_numpy_float64)
     register_adapter(numpy.int64, addapt_numpy_int64)
-    #
-    # # Load env vars
+
     conn = create_engine(
         f"postgresql://{pg_user}:{pg_password}@{pg_host}/{pg_dbname}"
     )
-    #
-    #
+
     class Point(UserDefinedType):
         def get_col_spec(self):
             return "POINT"
@@ -56,38 +64,6 @@ def main():
 
             return process
 
-
-    metadata = MetaData()
-
-    # This code is a mess.
-    temp_readings_production = Table(
-        'temp_readings_production',
-        metadata,
-        Column('id', Integer, autoincrement=True, primary_key=True),
-        Column('day', Integer),
-        Column('xy', Point),
-        Column('temperature', Integer)
-    )
-
-    ai_firealerts_production = Table('ai_fire_alerts_production', metadata,
-                                    Column('id', Integer, autoincrement=True, primary_key=True),
-                                    Column('event_day', Integer),
-                                    Column('xy', Point))
-
-    metadata.create_all(conn)
-
-    from sqlalchemy import create_engine, func, text
-    from dotenv import load_dotenv
-    import os
-    import pandas as pd
-    from tqdm import tqdm
-    from transformers import pipeline
-    import keras
-    import pickle
-    from typing import Union
-    import numpy as np
-
-
     def derive_sentiment(model_output: {"label": str, "score": float}) -> float:
         """
         Derives the sentiment score from the model's output.
@@ -97,7 +73,6 @@ def main():
         """
 
         return model_output["score"] * (1 if model_output["label"] == "yes_fire" else -1)
-
 
     def predict_fire_from_temp(temperatures: Union[list[int], list[list[int]]]) -> list[dict]:
         """
@@ -124,7 +99,6 @@ def main():
             output.append({"label": label, "score": score})
 
         return output
-
 
     def predict_fire(
             tweets: Union[list[str], list[list[str]]],
@@ -196,16 +170,89 @@ def main():
 
         return output
 
-    load_dotenv()
-    conn = create_engine(
-        f"postgresql://{os.getenv('PG_USER')}:{os.getenv('PG_PASSWORD')}@{os.getenv('PG_HOST')}/{os.getenv('PG_DBNAME')}"
-    )
     def rolling_samples(start_day, series, window=7):
         output = []
         for i in range(window, len(series)):
-            sample = series[i - window : i].tolist()
-            output.append((sample, i+start_day))
+            sample = series[i - window: i].tolist()
+            output.append((sample, i + start_day))
         return output
+
+    def dict_to_example(sample):
+        return sample["tweets"], sample["temperature"]
+
+    def parse_key(s: str):
+        day_str, _, coordinates_str = s.split('(')
+        day = int(day_str)
+        x_str, y_str = coordinates_str.strip(')').strip('(').split(',')
+        x = int(x_str)
+        y = int(y_str)
+        return day, x, y
+
+    async def ai_model(batched_tweets, batched_temperatures):
+        memphis = Memphis()
+        station_name = "zakar-fire-predictions"
+        try:
+            await memphis.connect(host=host, username=username, password=password, account_id=account_id)
+            producer = await memphis.producer(station_name=f"{station_name}",
+                                              producer_name=f"{station_name}-producer")  # you can send the message parameter as dict as well
+            for i in range(len(batched_tweets)):
+                print(f"Batch {i + 1}/{len(batched_tweets)}")
+                predictions = predict_fire(batched_tweets[i], batched_temperatures[i])
+                msgs = []
+                for j, key in enumerate(keys[i * batch_size: (i + 1) * batch_size]):
+                    if predictions[j] > 0.7:
+                        day, x, y = parse_key(key)
+
+                        msg = {
+                            "day": day,
+                            "geospatial_x": x,
+                            "geospatial_y": y,
+                        }
+
+                        await producer.produce(bytearray(json.dumps(msg), "utf-8"))
+
+                        msg['score'] = predictions[j]
+                        msgs.append(msg)
+
+                if len(msgs) > 0:
+                    postgres_egress(msgs)
+
+        except (MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError) as e:
+            print(e)
+
+        finally:
+            await memphis.close()
+
+    def postgres_egress(msg_list):
+        value_list = []
+        insert_statement = ai_firealerts_production.insert()
+
+        for msg in msg_list:
+            day = msg['day']
+            x = msg['geospatial_x']
+            y = msg['geospatial_y']
+            score = msg['score']
+
+            value_list.append({
+                'day': day,
+                'xy': func.point(x, y),
+                'score': score
+            })
+
+        if len(value_list) > 0:
+            with conn.connect() as connection:
+                connection.execute(insert_statement.values(value_list))
+                connection.commit()
+
+    metadata = MetaData()
+
+    ai_firealerts_production = Table('ai_fire_alerts_production', metadata,
+                                     Column('id', Integer, autoincrement=True, primary_key=True),
+                                     Column('day', Integer),
+                                     Column('xy', Point),
+                                     Column('score', Float))
+
+    metadata.create_all(conn)
 
     print("Temperature starting")
     temp_readings = pd.read_sql_query(text("SELECT * FROM public.temp_readings_production"), conn)
@@ -219,7 +266,7 @@ def main():
     for name, group in temp_readings.groupby("xy"):
         group = group.sort_values("day")
         temps = rolling_samples(start_day, group["temperature"].set_axis(group["day"]))
-        
+
         for temp, i in temps:
             samples.append({
                 "day": i,
@@ -237,23 +284,17 @@ def main():
 
     merged_data = pd.merge(samples, tweets, how='left', on=['xy', 'day']).drop(["id", "score"], axis=1).fillna("")
 
-    complete_samples =merged_data.groupby(['xy', 'day']).agg(
+    complete_samples = merged_data.groupby(['xy', 'day']).agg(
         # include other columns as needed
         tweets=pd.NamedAgg(column='content', aggfunc=list),
         temperature=pd.NamedAgg(column='temp', aggfunc='first')
     ).reset_index()
 
-    complete_samples = complete_samples.to_dict(orient = 'records')
-
-    def dict_to_example(sample):
-        return sample["tweets"], sample["temperature"]
-
-
+    complete_samples = complete_samples.to_dict(orient='records')
 
     classifier = pipeline("sentiment-analysis", model="./blaze_nlp")
     lstm_model = keras.models.load_model("lstm_model.h5")
     scaler = pickle.load(open("scaler.pkl", "rb"))
-
 
     # Define batch size
     batch_size = 128
@@ -265,79 +306,16 @@ def main():
         items = [item for sublist in map(dict_to_example, [sample]) for item in sublist]
         result[key] = items
 
-
-    def parse_key(s: str):
-        day_str, _, coordinates_str = s.split('(')
-        day = int(day_str)
-        x_str, y_str = coordinates_str.strip(')').strip('(').split(',')
-        x = int(x_str)
-        y = int(y_str)
-        return day, x, y
-
-    def memphis_egress(msg):
-        try:
-            station_name="zakar-fire-predictions"
-            memphis = Memphis()
-            memphis.connect(host=host, username=username, password=password, account_id=account_id)
-            producer = memphis.producer(station_name=f"{station_name}",
-                                    producer_name=f"{station_name}-producer")  # you can send the message parameter as dict as well
-            producer.produce(bytearray(json.dumps(msg), "utf-8"))
-
-        except (MemphisError, MemphisConnectError, MemphisHeaderError, MemphisSchemaError) as e:
-            print(e)
-
-        finally:
-            memphis.close()
-
-    def postgres_egress(msg_list):
-        value_list = []
-        insert_statement = ai_firealerts_production.insert()
-
-        for msg in msg_list:
-            day = msg['day']
-            x = msg['geospatial_x']
-            y = msg['geospatial_y']
-
-            value_list.append({
-                'day': day,
-                'xy': func.point(x, y),
-            })
-        
-        if len(value_list) > 0:
-            with conn.connect() as connection:
-                connection.execute(insert_statement.values(value_list))
-
     data = result
     # Split the data into batches
     keys = list(data.keys())
     batched_tweets = []
     batched_temperatures = []
     for i in range(0, len(keys), batch_size):
-        batch_tweets = [data[key][0] for key in keys[i:i+batch_size]]
-        batch_temperatures = [data[key][1] for key in keys[i:i+batch_size]]
+        batch_tweets = [data[key][0] for key in keys[i:i + batch_size]]
+        batch_temperatures = [data[key][1] for key in keys[i:i + batch_size]]
         batched_tweets.append(batch_tweets)
         batched_temperatures.append(batch_temperatures)
 
     # Call predict_fire on each batch and map the outputs to the keys
-    results = {}
-    for i in range(len(batched_tweets)):
-        print(f"Batch {i+1}/{len(batched_tweets)}")
-        predictions = predict_fire(batched_tweets[i], batched_temperatures[i])
-        msgs = []
-        for j, key in enumerate(keys[i*batch_size : (i+1)*batch_size]):
-            results[key] = predictions[j]
-
-            if predictions[j] > 0.7:
-                day, x, y = parse_key(key)
-
-                msg = {
-                    "day": day,
-                    "geospatial_x": x,
-                    "geospatial_y": y,
-                }
-
-                memphis_egress(msg)
-                msgs.append(msg)
-        
-        if len(msgs) > 0:
-            postgres_egress(msgs)
+    asyncio.run(ai_model(batched_tweets, batched_temperatures))
