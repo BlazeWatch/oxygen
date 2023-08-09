@@ -4,7 +4,7 @@ Backend Code for Blaze. Deals with both Ingress(incoming messages) and Egress(br
 
 First, make sure to rename .env.example to .env and replace with the relavant credentials!
 
-Note: For the DB, make sure to use Postgres! The temp_readings tables should be created on script startup. Make sure that you have a zakar-tweets station!
+Note: For the DB, make sure to use Postgres! You can acquire a free PostgresSQL database on Supabase. The temp_readings tables should be created on script startup. Make sure that you have a zakar-tweets station!
 ```bash
 MEMPHIS_HOSTNAME=string
 MEMPHIS_USERNAME=string
