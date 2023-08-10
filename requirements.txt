@@ -1,10 +1,10 @@
 memphis-py
-python-dotenv
-sqlalchemy
+python-dotenv~=1.0.0
+sqlalchemy~=2.0.19
 pandas
-numpy
+numpy~=1.24.3
 sqlalchemy_aio
-asyncio
+asyncio~=3.4.3
 psycopg2-binary
 geoalchemy2
 transformers
@@ -13,3 +13,4 @@ flask
 scikit-learn
 tensorflow-cpu
 xformers
+tqdm
